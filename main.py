@@ -166,5 +166,111 @@ async def sever(ctx, minecraft_nickname: str):
     discord_user = await bot.fetch_user(discord_user_id)
     await ctx.send(f"{discord_user.mention}님의 마인크래프트 닉네임 `{minecraft_nickname}`이(가) 강제 해제되었습니다.")
 
+# Command: !ping
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def ping(ctx):
+    await ctx.send(f'pong! {round(bot.latency * 1000)}ms')
+
+# Command: !testin <player_name>
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def testin(ctx, player_name: str):
+    player_sessions[player_name] = time.time()
+    await ctx.send(f"{player_name} 님이 테스트 입장하였습니다.")
+
+# Command: !testout <player_name>
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def testout(ctx, player_name: str):
+    if player_name in player_sessions:
+        join_time = player_sessions.pop(player_name)
+        play_time = int((time.time() - join_time) / 60)
+        if play_time < 1:
+            await ctx.send(f"{player_name} 님의 플레이 시간이 1분 미만이라 XP가 지급되지 않습니다.")
+            return
+        gained_xp = play_time * XP_PER_MINUTE
+
+        if player_name not in user_data:
+            user_data[player_name] = {"xp": 0, "level": 1}
+
+        user_data[player_name]["xp"] += gained_xp
+
+        level_up = False
+        while user_data[player_name]["xp"] >= required_xp(user_data[player_name]["level"]):
+            user_data[player_name]["xp"] -= required_xp(user_data[player_name]["level"])
+            user_data[player_name]["level"] += 1
+            level_up = True
+
+        save_data(XP_FILE, user_data)
+
+        if level_up:
+            level_up_channel = bot.get_channel(LEVEL_CHANNEL)
+            if level_up_channel:
+                await level_up_channel.send(f"{player_name} 님이 레벨 {user_data[player_name]['level']}로 상승했습니다! (총 플레이 {play_time}분, 획득 XP: {gained_xp})")
+
+        await ctx.send(f"{player_name} 님이 테스트 퇴장하였습니다. (총 플레이 {play_time}분, 획득 XP: {gained_xp})")
+    else:
+        await ctx.send(f"{player_name} 님은 입장 기록이 없습니다.")
+
+# Command: !레벨
+@bot.command()
+async def 레벨(ctx):
+    discord_user_id = str(ctx.author.id)
+
+    if discord_user_id in nicknames:
+        player_name = nicknames[discord_user_id]
+    else:
+        await ctx.send(f"{ctx.author.mention}님은 마인크래프트 닉네임이 등록되지 않았습니다. `!link <닉네임>`으로 등록해주세요.")
+        return
+
+    if player_name in user_data:
+        xp = user_data[player_name]["xp"]
+        level = user_data[player_name]["level"]
+        next_level_xp = required_xp(level)
+        await ctx.send(f"{ctx.author.mention}님의 현재 레벨: {level} (XP: {xp}/{next_level_xp})")
+    else:
+        await ctx.send(f"{ctx.author.mention}님은 아직 경험치가 없습니다.")
+
+# Command: !exadd <닉네임> <경험치> (Admin Only)
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def exadd(ctx, minecraft_nickname: str, amount: int):
+    if minecraft_nickname not in user_data:
+        user_data[minecraft_nickname] = {"xp": 0, "level": 1}
+
+    user_data[minecraft_nickname]["xp"] += amount
+
+    level_up = False
+    while user_data[minecraft_nickname]["xp"] >= required_xp(user_data[minecraft_nickname]["level"]):
+        user_data[minecraft_nickname]["xp"] -= required_xp(user_data[minecraft_nickname]["level"])
+        user_data[minecraft_nickname]["level"] += 1
+        level_up = True
+
+    save_data(XP_FILE, user_data)
+
+    await ctx.send(f"`{minecraft_nickname}` 님에게 {amount} XP를 추가했습니다. (현재 XP: {user_data[minecraft_nickname]['xp']})")
+
+    if level_up:
+        level_up_channel = bot.get_channel(LEVEL_CHANNEL)
+        if level_up_channel:
+            await level_up_channel.send(f"{minecraft_nickname} 님이 레벨 {user_data[minecraft_nickname]['level']}로 상승했습니다!")
+
+# Command: !exdel <닉네임> <경험치> (Admin Only)
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def exdel(ctx, minecraft_nickname: str, amount: int):
+    if minecraft_nickname not in user_data:
+        await ctx.send(f"`{minecraft_nickname}` 님은 아직 경험치가 없습니다.")
+        return
+
+    user_data[minecraft_nickname]["xp"] -= amount
+    if user_data[minecraft_nickname]["xp"] < 0:
+        user_data[minecraft_nickname]["xp"] = 0
+
+    save_data(XP_FILE, user_data)
+
+    await ctx.send(f"`{minecraft_nickname}` 님에게서 {amount} XP를 제거했습니다. (현재 XP: {user_data[minecraft_nickname]['xp']})")
+
 # Run Bot
 bot.run(WTOKEN)
