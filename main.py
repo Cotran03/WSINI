@@ -72,7 +72,7 @@ async def on_message(message):
     if message.channel.id == CONSOLE_CHANNEL:
         if message.author.bot and message.embeds:
             embed = message.embeds[0]
-            embed_text = embed.description
+            embed_text = embed.author.name if embed.author else None
 
             if embed_text:
                 join_match = re.search(r"(.+?) 님이 서버에 접속하셨습니다.", embed_text)
@@ -106,9 +106,9 @@ async def on_message(message):
                         save_data(XP_FILE, user_data)
 
                         if level_up:
-                            level_up_channel = bot.get_channel(LEVEL_CHANNEL)
+                            level_up_channel = bot.get_channel(int(LEVEL_CHANNEL))
                             if level_up_channel:
-                                await level_up_channel.send(f"{player_name} 님이 레벨 {user_data[player_name]['level']}로 상승했습니다! (총 플레이 {play_time}분, 획득 XP: {gained_xp})")
+                                await level_up_channel.send(f"{player_name} 님이 레벨 {user_data[player_name]['level']}(으)로 상승했습니다! (총 플레이 {play_time}분, 획득 XP: {gained_xp})")
 
                         print(f"{player_name} 퇴장 감지! 플레이 시간: {play_time}분, XP 획득: {gained_xp}")
 
@@ -168,7 +168,6 @@ async def sever(ctx, minecraft_nickname: str):
 
 # Command: !ping
 @bot.command()
-@commands.has_permissions(administrator=True)
 async def ping(ctx):
     await ctx.send(f'pong! {round(bot.latency * 1000)}ms')
 
@@ -207,7 +206,7 @@ async def testout(ctx, player_name: str):
         if level_up:
             level_up_channel = bot.get_channel(LEVEL_CHANNEL)
             if level_up_channel:
-                await level_up_channel.send(f"{player_name} 님이 레벨 {user_data[player_name]['level']}로 상승했습니다! (총 플레이 {play_time}분, 획득 XP: {gained_xp})")
+                await level_up_channel.send(f"{player_name} 님이 레벨 {user_data[player_name]['level']}(으)로 상승했습니다! (총 플레이 {play_time}분, 획득 XP: {gained_xp})")
 
         await ctx.send(f"{player_name} 님이 테스트 퇴장하였습니다. (총 플레이 {play_time}분, 획득 XP: {gained_xp})")
     else:
@@ -253,8 +252,13 @@ async def exadd(ctx, minecraft_nickname: str, amount: int):
 
     if level_up:
         level_up_channel = bot.get_channel(LEVEL_CHANNEL)
-        if level_up_channel:
-            await level_up_channel.send(f"{minecraft_nickname} 님이 레벨 {user_data[minecraft_nickname]['level']}로 상승했습니다!")
+
+        if level_up_channel is None:
+            await ctx.send("⚠ 레벨 알림 채널을 찾을 수 없습니다. LEVEL_CHANNEL 값을 확인하세요.")
+            print(f"⚠ LEVEL_CHANNEL({LEVEL_CHANNEL})이 올바르게 설정되지 않았거나, 봇이 해당 채널을 찾을 수 없습니다.")
+            return
+
+        await level_up_channel.send(f"{minecraft_nickname} 님이 레벨 {user_data[minecraft_nickname]['level']}(으)로 상승했습니다!")
 
 # Command: !exdel <닉네임> <경험치> (Admin Only)
 @bot.command()
