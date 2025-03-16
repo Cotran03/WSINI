@@ -1,5 +1,5 @@
 .venv
 config.py
 __pycache__
-level.json
+levels.json
 nicknames.json
